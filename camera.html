@@ -43,7 +43,7 @@
         
         .camera-container {
             position: relative;
-            width: 320px;
+            width: min(90vw, 320px);
             height: var(--camera-height);
             margin-top: 30px;
             perspective: 1000px;
@@ -95,6 +95,9 @@
             height: 10px;
             background: rgba(255,255,255,0.8);
             border-radius: 2px;
+        }
+        .flash.flash-fired::after {
+            animation: flash-unit 0.25s ease-out;
         }
         .lens-wrapper {
             position: relative;
@@ -166,6 +169,9 @@
         .shutter-btn:active {
             transform: scale(0.9);
             background: #ff5252;
+        }
+        .shutter-btn.shutter-firing {
+            animation: shutter-press 0.22s ease-out;
         }
         #file-input { display: none; }
         .slot {
@@ -313,6 +319,91 @@
             pointer-events: none;
             z-index: 1000;
         }
+
+        .version-tag {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        @keyframes flash-unit {
+            0% { box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+            50% { box-shadow: 0 0 24px 8px rgba(255, 255, 255, 0.95); }
+            100% { box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+        }
+
+        @keyframes shutter-press {
+            0% { transform: scale(1); }
+            40% { transform: scale(0.86); }
+            100% { transform: scale(1); }
+        }
+
+        @media (max-width: 768px) {
+            :root {
+                --polaroid-width: 180px;
+                --polaroid-full-height: 245px;
+                --camera-height: 260px;
+            }
+
+            header {
+                margin-top: 14px;
+                max-width: 92vw;
+            }
+
+            .gallery {
+                gap: 24px;
+                margin-top: calc(var(--polaroid-full-height) + 30px);
+            }
+
+            .lens-wrapper {
+                width: 150px;
+                height: 150px;
+            }
+
+            .lens-glass {
+                width: 116px;
+                height: 116px;
+            }
+        }
+
+        @media (max-width: 420px) {
+            :root {
+                --polaroid-width: 156px;
+                --polaroid-full-height: 217px;
+                --camera-height: 220px;
+                --slot-height: 13px;
+            }
+
+            .camera-body {
+                border-radius: 28px;
+            }
+
+            .stripe {
+                top: 24px;
+                height: 10px;
+            }
+
+            .flash {
+                top: 18px;
+                right: 18px;
+                width: 40px;
+                height: 22px;
+            }
+
+            .shutter-btn {
+                width: 50px;
+                height: 50px;
+                right: 14px;
+                bottom: 18px;
+            }
+
+            .gallery {
+                width: 96%;
+                gap: 16px;
+                padding: 12px;
+                padding-bottom: 70px;
+            }
+        }
     </style>
 </head>
 <body onload="startCamera()">
@@ -324,6 +415,7 @@
             **🔴 红钮拍摄:** 使用当前镜头内的**实时画面**生成拍立得 <br>
             **√保存相纸:** ios用户长按相纸，保存后可在文件（不是相册！）查看
         </p>
+        <div class="version-tag" id="version-tag">Version</div>
     </header>
 
     <div class="camera-container">
@@ -348,15 +440,38 @@
     <div class="gallery" id="gallery"></div>
 
     <script>
+        const CONFIG = {
+            appVersion: '0.2.3',
+            messages: {
+                cameraNotSupported: 'Error: Camera not supported. Only upload mode available.',
+                cameraFailed: 'CAMERA FAILED\n(Tap to Upload Photo)',
+                missingSourceAlert: '请先上传一张图片，或确保摄像头已启动！',
+                iosSaveTip: '在打开的全屏图片上长按 (或右键点击) 以保存到相册！'
+            },
+            effects: {
+                captureDelayMs: 180,
+                flashDurationMs: 450
+            },
+            gallery: {
+                maxItems: 5
+            }
+        };
+
         const cameraFeed = document.getElementById('camera-feed');
         const previewImg = document.getElementById('preview-img');
         const uploadText = document.getElementById('upload-text');
         const fileInput = document.getElementById('file-input');
         const gallery = document.getElementById('gallery'); 
         const slotExit = document.getElementById('slot-exit');
+        const shutterBtn = document.querySelector('.shutter-btn');
+        const flashUnit = document.querySelector('.flash');
+        const versionTag = document.getElementById('version-tag');
 
         let stream = null; 
         let loadedImage = null; 
+
+        versionTag.innerText = `Version ${CONFIG.appVersion}`;
+        document.title = `Digital Polaroid v${CONFIG.appVersion} - Dual Mode`;
 
         const emojis = [
             "♥", "✨", "💫", "⭐", "😊", "🎶", "📸", "🌈", "🦋", "🥂"
@@ -387,7 +502,7 @@
 
         async function startCamera() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                uploadText.innerText = "Error: Camera not supported. Only upload mode available.";
+                uploadText.innerText = CONFIG.messages.cameraNotSupported;
                 return;
             }
 
@@ -408,7 +523,7 @@
                 console.error("Camera access denied or failed: ", err);
                 cameraFeed.style.display = 'none';
                 uploadText.style.display = 'block';
-                uploadText.innerText = "CAMERA FAILED\n(Tap to Upload Photo)";
+                uploadText.innerText = CONFIG.messages.cameraFailed;
             }
         }
         
@@ -421,18 +536,18 @@
         function takePhoto() {
             if (loadedImage && previewImg.style.display === 'block') {
                 applyFlash();
-                setTimeout(() => { generatePolaroidFromImage(loadedImage); }, 200);
+                setTimeout(() => { generatePolaroidFromImage(loadedImage); }, CONFIG.effects.captureDelayMs);
                 return;
             } 
             
             else if (stream && cameraFeed.style.display === 'block' && !cameraFeed.paused) {
                 applyFlash();
-                setTimeout(() => { generatePolaroidFromVideo(); }, 200);
+                setTimeout(() => { generatePolaroidFromVideo(); }, CONFIG.effects.captureDelayMs);
                 return;
             }
             
             else {
-                alert("请先上传一张图片，或确保摄像头已启动！");
+                alert(CONFIG.messages.missingSourceAlert);
             }
         }
 
@@ -440,7 +555,14 @@
             const flash = document.getElementById('flash-overlay');
             flash.style.animation = 'none';
             flash.offsetHeight; 
-            flash.style.animation = 'flash-anim 0.4s ease-out';
+            flash.style.animation = `flash-anim ${CONFIG.effects.flashDurationMs}ms ease-out`;
+
+            shutterBtn.classList.remove('shutter-firing');
+            flashUnit.classList.remove('flash-fired');
+            shutterBtn.offsetHeight;
+            flashUnit.offsetHeight;
+            shutterBtn.classList.add('shutter-firing');
+            flashUnit.classList.add('flash-fired');
         }
 
         async function generatePolaroidFromVideo() {
@@ -584,7 +706,7 @@
             if (isIOS) {
                 downloadLinkHTML = `
                     <a href="${imgSrc}" target="_blank" class="download-btn" 
-                       onclick="alert('在打开的全屏图片上长按 (或右键点击) 以保存到相册！')">
+                       onclick="alert('${CONFIG.messages.iosSaveTip}')">
                         长按保存 (iOS)
                     </a>
                 `;
@@ -630,7 +752,7 @@
 
         function createPolaroidElement(galleryItem) {
             
-            if (gallery.children.length >= 5) {
+            if (gallery.children.length >= CONFIG.gallery.maxItems) {
                 if(gallery.lastElementChild) {
                     gallery.removeChild(gallery.lastElementChild);
                 }
