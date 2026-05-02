@@ -1,6 +1,6 @@
 # RetorCamera
 
-![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.3.1-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Web-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-black.svg)
 ![Status](https://img.shields.io/badge/status-active-success.svg)
