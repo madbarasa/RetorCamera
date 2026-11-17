@@ -6,7 +6,7 @@
 ![Status](https://img.shields.io/badge/status-active-success.svg)
 
 一个复古风格的网页拍立得应用：支持摄像头实时拍摄、图片上传、一键生成拍立得相纸，并可直接下载保存。
-🎮 在线试玩 »，直达 madbarasa.github.io/RetorCamera/
+🎮 在线试玩 »，直达 https://madbarasa.github.io/RetorCamera/
 
 ## 目录
 
